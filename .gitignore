@@ -1,0 +1,17 @@
+# Contexto local: no subir al repositorio
+.cursor/
+CHANGE.md
+
+# Secretos
+.env
+.env.local
+.env.*.local
+
+# Información de la base de datos: no subir a GitHub
+database/
+docs/local-testing.md
+
+# Aplicación
+node_modules/
+.next/
+out/
