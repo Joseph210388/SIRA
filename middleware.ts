@@ -6,12 +6,31 @@ const publicPaths = new Set(["/", "/login", "/register", "/terms", "/privacy"]);
 function continueWithPath(request: NextRequest) {
   const headers = new Headers(request.headers);
   headers.set("x-sira-path", request.nextUrl.pathname);
+  headers.set("x-sira-search", request.nextUrl.search);
   return NextResponse.next({ request: { headers } });
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/_next") || pathname === "/sw.js" || pathname === "/icon" || pathname === "/apple-icon") {
+  const search = request.nextUrl.search;
+  if (search.includes("%3F") || search.includes("%3f")) {
+    const decoded = decodeURIComponent(search);
+    const cut = decoded.indexOf("?", 1);
+    if (cut > 0) {
+      const fixed = `${decoded.slice(0, cut)}&${decoded.slice(cut + 1)}`;
+      return NextResponse.redirect(new URL(`${pathname}${fixed}`, request.url));
+    }
+  }
+  // El manifiesto y los iconos no son páginas. Si se redirigen al acceso, el navegador
+  // intenta leer HTML como JavaScript y la pantalla se recarga sola.
+  if (
+    pathname.startsWith("/_next") ||
+    pathname === "/sw.js" ||
+    pathname === "/icon" ||
+    pathname === "/apple-icon" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname.endsWith(".webmanifest")
+  ) {
     return NextResponse.next();
   }
   const token = request.cookies.get("sira_session")?.value;

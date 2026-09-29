@@ -1,9 +1,7 @@
-import { createAccountAction } from "@/lib/finance/actions";
+import { AccountForm } from "@/components/account-form";
 import { getSession } from "@/lib/auth/session";
-import { Field, Notice, Select } from "@/components/field";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { loadFinance } from "@/lib/finance/load";
+import { categoryName } from "@/lib/i18n";
 import { appCopy } from "@/lib/i18n-db";
 import { formatMoney } from "@/lib/money";
 import { redirect } from "next/navigation";
@@ -25,34 +23,19 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           <li key={account.id} className="rounded-2xl bg-white p-4 ring-1 ring-ink/10">
             <p className="font-medium">{account.name}</p>
             <p className="text-sm text-ink/70">{account.kind === "cash" ? text.kindCash : account.kind === "savings" ? text.kindSavings : text.kindCurrent}</p>
-            <p>{formatMoney(account.balance, session.locale)}</p>
+            <p>{formatMoney(account.balance, session.locale, session.currency)}</p>
           </li>
         ))}
       </ul>
-      <form action={createAccountAction} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink/10">
-        <Field label={text.accountName}><Input name="name" required /></Field>
-        <Field label={text.account}>
-          <Select name="kind" defaultValue="current">
-            <option value="current">{text.kindCurrent}</option>
-            <option value="savings">{text.kindSavings}</option>
-            <option value="cash">{text.kindCash}</option>
-          </Select>
-        </Field>
-        <Field label={text.opening}><Input name="amount" inputMode="decimal" required defaultValue="0" /></Field>
-        <fieldset className="grid gap-2 text-sm">
-          <legend className="font-medium">{text.kindCash}</legend>
-          <label className="flex min-h-11 items-center gap-2"><input type="radio" name="cashOrigin" value="already" defaultChecked />{text.cashAlready}</label>
-          <label className="flex min-h-11 items-center gap-2"><input type="radio" name="cashOrigin" value="gift" />{text.cashGift}</label>
-          <label className="flex min-h-11 items-center gap-2"><input type="radio" name="cashOrigin" value="withdrawal" />{text.cashFromAccount}</label>
-        </fieldset>
-        <Field label={text.sourceAccount}>
-          <Select name="sourceId" defaultValue={data.accounts[0]?.id ?? ""}>
-            {data.accounts.filter((item) => item.kind !== "cash").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </Select>
-        </Field>
-        <Notice>{text.cashFromAccount}</Notice>
-        <Button type="submit">{text.save}</Button>
-      </form>
+      <AccountForm
+        text={text}
+        next="/accounts"
+        accounts={data.accounts.map((item) => ({ id: item.id, name: item.name, kind: item.kind }))}
+        incomeOptions={data.categories.filter((item) => item.kind === "income" && item.key && item.key !== "other").map((item) => ({
+          key: item.key ?? "",
+          label: item.key ? categoryName(item.key, text) : item.name ?? "",
+        }))}
+      />
     </section>
   );
 }

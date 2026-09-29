@@ -40,7 +40,7 @@ export default async function BudgetsPage() {
           return (
             <li key={budget.categoryId} className="rounded-2xl bg-white p-4 ring-1 ring-ink/10">
               <p className="font-medium">{category?.key ? categoryName(category.key, text) : category?.name}</p>
-              <p className="text-sm">{text.spent}: {formatMoney(spent, session.locale)} / {text.limit}: {formatMoney(budget.limit, session.locale)}</p>
+              <p className="text-sm">{text.spent}: {formatMoney(spent, session.locale, session.currency)} / {text.limit}: {formatMoney(budget.limit, session.locale, session.currency)}</p>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
                 <div style={{ width: `${ratio}%`, height: "100%", background: "rgb(var(--primary))" }} />
               </div>

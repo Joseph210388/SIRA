@@ -54,9 +54,9 @@ export default async function PrivacyPage() {
     <PublicPage text={text}>
       <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 pb-8 sm:px-6 lg:px-10">
         <header className="grid gap-3">
-          <p className={`${instrument.className} text-[#C88A36]`}>Seguridad y privacidad</p>
-          <h1 className={`${playfair.className} text-3xl font-semibold leading-tight text-[#14271F] sm:text-5xl`}>Cómo viajan tus datos</h1>
-          <p className="max-w-3xl text-sm leading-6 text-[#3F6756] sm:text-base">
+          <p className={`${instrument.className} text-accent`}>Seguridad y privacidad</p>
+          <h1 className={`${playfair.className} text-3xl font-semibold leading-tight text-ink sm:text-5xl`}>Cómo viajan tus datos</h1>
+          <p className="max-w-3xl text-sm leading-6 text-pine/80 sm:text-base">
             SIRA cifra en el servidor lo que no hace falta leer para entrar o filtrar. El diseño de referencia hablaba de cero conocimiento, frase de 24 palabras y bóveda solo en el dispositivo. Eso no está construido.
           </p>
         </header>
@@ -67,9 +67,9 @@ export default async function PrivacyPage() {
             ["Al guardarse", "La aplicación cifra importes y datos personales antes de escribir la fila."],
             ["Quién lo ve", "Quien entra en tu cuenta. En dúo, solo las cuentas que marcas como compartidas."],
           ].map(([title, body]) => (
-            <article key={title} className="rounded-[2rem] border border-[#E8DFC8] bg-white/90 p-5">
+            <article key={title} className="rounded-[2rem] border border-ink/15 bg-white/90 p-5">
               <h2 className="text-base font-semibold">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#3F6756]">{body}</p>
+              <p className="mt-2 text-sm leading-6 text-pine/80">{body}</p>
             </article>
           ))}
         </section>
@@ -78,16 +78,16 @@ export default async function PrivacyPage() {
           <h2 className={`${playfair.className} text-2xl font-semibold sm:text-3xl`}>Cuatro pilares de esta versión</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {pillars.map((pillar) => (
-              <article key={pillar.title} className="rounded-[2rem] border border-[#E8DFC8] bg-white/90 p-5">
+              <article key={pillar.title} className="rounded-[2rem] border border-ink/15 bg-white/90 p-5">
                 <h3 className="font-semibold">{pillar.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#3F6756]">{pillar.body}</p>
+                <p className="mt-2 text-sm leading-6 text-pine/80">{pillar.body}</p>
               </article>
             ))}
           </div>
         </section>
 
         <section className="grid gap-3 lg:grid-cols-2">
-          <article className="rounded-[2rem] bg-[#14271F] p-6 text-[#F7F6F2]">
+          <article className="rounded-[2rem] bg-ink p-6 text-paper">
             <h2 className={`${playfair.className} text-2xl`}>Lo que SIRA no hace</h2>
             <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/80">
               <li>No vende tus gastos a aseguradoras ni a tarjetas.</li>
@@ -95,9 +95,9 @@ export default async function PrivacyPage() {
               <li>No es un banco y no custodia depósitos.</li>
             </ul>
           </article>
-          <article className="rounded-[2rem] border border-[#E8DFC8] bg-white/90 p-6">
+          <article className="rounded-[2rem] border border-ink/15 bg-white/90 p-6">
             <h2 className={`${playfair.className} text-2xl`}>Lo que sí hace</h2>
-            <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#3F6756]">
+            <ul className="mt-3 grid gap-2 text-sm leading-6 text-pine/80">
               <li>Pide correo, país, nombre, apellido, fecha de nacimiento, ciudad, población y teléfono para la cuenta y la edad mínima.</li>
               <li>Cifra identidad e importes. El correo sigue en claro.</li>
               <li>El modo dúo enseña solo las cuentas elegidas.</li>
@@ -108,14 +108,14 @@ export default async function PrivacyPage() {
         <section className="grid gap-3">
           <h2 className={`${playfair.className} text-2xl font-semibold sm:text-3xl`}>Preguntas</h2>
           {questions.map((item) => (
-            <article key={item.q} className="rounded-[2rem] border border-[#E8DFC8] bg-white/90 p-5">
+            <article key={item.q} className="rounded-[2rem] border border-ink/15 bg-white/90 p-5">
               <h3 className="font-semibold">{item.q}</h3>
-              <p className="mt-2 text-sm leading-6 text-[#3F6756]">{item.a}</p>
+              <p className="mt-2 text-sm leading-6 text-pine/80">{item.a}</p>
             </article>
           ))}
         </section>
 
-        <p className="text-sm text-[#3F6756]">
+        <p className="text-sm text-pine/80">
           Borrador de producto, versión de términos 2026-09-28. No sustituye una política revisada por asesoría legal.
           {" "}
           <Link href="/login" className="underline">Volver al acceso</Link>

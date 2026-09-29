@@ -5,6 +5,7 @@ import {
   accounts,
   budgets,
   categories,
+  userCategoryPicks,
   movements,
   profiles,
   reminderDispatches,
@@ -66,7 +67,12 @@ export async function loadFinance(userId: string, timeZone: string) {
     await assumeUser(client, userId);
     const accountList = await db.select().from(accounts).where(and(eq(accounts.ownerUserId, userId), isNull(accounts.archivedAt)));
     const movementList = await db.select().from(movements).where(eq(movements.actorUserId, userId)).orderBy(desc(movements.occurredAt));
-    const categoryList = await db.select().from(categories);
+    const everyCategory = await db.select().from(categories);
+    const picks = await db.select().from(userCategoryPicks).where(eq(userCategoryPicks.userId, userId));
+    const pickedIds = new Set(picks.map((item) => item.categoryId));
+    const categoryList = pickedIds.size > 0
+      ? everyCategory.filter((item) => pickedIds.has(item.id) || item.ownerUserId === userId)
+      : everyCategory;
     const shareList = await db.select().from(accountShares).where(and(eq(accountShares.sharedBy, userId), isNull(accountShares.revokedAt)));
     const sharedIds = new Set(shareList.map((item) => item.accountId));
     const names = new Map(accountList.map((item) => [item.id, decryptString(asBuffer(item.nameCiphertext))]));

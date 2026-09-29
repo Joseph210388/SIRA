@@ -28,7 +28,7 @@ export function getPool() {
     const url = databaseUrl();
     globalForDb.pool = new Pool({
       connectionString: url,
-      max: 5,
+      max: 12,
       ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
     });
   }

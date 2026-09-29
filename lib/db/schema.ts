@@ -6,6 +6,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -55,6 +56,31 @@ export const countryAgeRules = pgTable("country_age_rules", {
   basis: text("basis").notNull(),
 });
 
+export const themes = pgTable("themes", {
+  code: text("code").primaryKey(),
+  name: text("name").notNull(),
+  pageRgb: text("page_rgb").notNull(),
+  surfaceRgb: text("surface_rgb").notNull(),
+  inkRgb: text("ink_rgb").notNull(),
+  primaryRgb: text("primary_rgb").notNull(),
+  primaryDarkRgb: text("primary_dark_rgb").notNull(),
+  softRgb: text("soft_rgb").notNull(),
+  accentRgb: text("accent_rgb").notNull(),
+  dangerRgb: text("danger_rgb").notNull(),
+  incomeRgb: text("income_rgb").notNull(),
+  expenseRgb: text("expense_rgb").notNull(),
+  savingsRgb: text("savings_rgb").notNull(),
+  chart1Rgb: text("chart_1_rgb").notNull(),
+  chart2Rgb: text("chart_2_rgb").notNull(),
+  chart3Rgb: text("chart_3_rgb").notNull(),
+  chart4Rgb: text("chart_4_rgb").notNull(),
+});
+
+export const currencies = pgTable("currencies", {
+  code: char("code", { length: 3 }).primaryKey(),
+  name: text("name").notNull(),
+});
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   email: citext("email").notNull(),
@@ -63,6 +89,9 @@ export const users = pgTable("users", {
   locale: text("locale").notNull(),
   timezone: text("timezone").notNull(),
   theme: text("theme").notNull().default("emerald"),
+  currencyCode: char("currency_code", { length: 3 }).notNull().default("EUR"),
+  themeChosenAt: timestamp("theme_chosen_at", { withTimezone: true, mode: "date" }),
+  categoriesChosenAt: timestamp("categories_chosen_at", { withTimezone: true, mode: "date" }),
   firstNameCiphertext: bytea("first_name_ciphertext").notNull(),
   lastNameCiphertext: bytea("last_name_ciphertext").notNull(),
   phoneCiphertext: bytea("phone_ciphertext").notNull(),
@@ -145,6 +174,11 @@ export const spaceInvites = pgTable("space_invites", {
   revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+export const userCategoryPicks = pgTable("user_category_picks", {
+  userId: uuid("user_id").notNull(),
+  categoryId: uuid("category_id").notNull(),
+}, (table) => [primaryKey({ columns: [table.userId, table.categoryId] })]);
 
 export const accounts = pgTable("accounts", {
   id: uuid("id").primaryKey().defaultRandom(),

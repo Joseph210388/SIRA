@@ -3,7 +3,7 @@ import { LanguageCorner } from "@/components/language-corner";
 import { ServiceWorker } from "@/components/service-worker";
 import { getSession } from "@/lib/auth/session";
 import { copy } from "@/lib/i18n";
-import { isTheme, themeCookieName } from "@/lib/theme";
+import { isTheme, themeCookieName, themeVarsFor } from "@/lib/theme";
 import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
@@ -30,8 +30,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const path = (await headers()).get("x-sira-path") ?? "/";
   const fromCookie = jar.get(themeCookieName)?.value;
   const theme = session && isTheme(session.theme) ? session.theme : isTheme(fromCookie) ? fromCookie : "emerald";
+  const themeStyle = await themeVarsFor(theme);
   return (
-    <html lang={lang} data-theme={theme}>
+    <html lang={lang} data-theme={theme} style={themeStyle ?? undefined}>
       <body>
         {session?.mfa ? null : <LanguageCorner locale={lang} label={text.language} next={path} />}
         <ChunkReload />

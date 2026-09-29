@@ -28,10 +28,10 @@ export function parseAmountToMinor(raw: string) {
   return minor;
 }
 
-export function formatMoney(minor: number, locale: string) {
+export function formatMoney(minor: number, locale: string, currency = "EUR") {
   return new Intl.NumberFormat(moneyLocale(locale), {
     style: "currency",
-    currency: "EUR",
+    currency,
   }).format(minor / 100);
 }
 

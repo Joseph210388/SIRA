@@ -1,4 +1,4 @@
-import { saveSettingsAction, setThemeAction } from "@/lib/finance/actions";
+import { saveSettingsAction, setCurrencyAction, setThemeAction } from "@/lib/finance/actions";
 import { getSession } from "@/lib/auth/session";
 import { Field, Select } from "@/components/field";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,18 @@ export default async function SettingsPage() {
                 </span>
                 <span className="text-sm font-medium">{labels[theme]}</span>
               </button>
+            </form>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-3">
+        <h2 className="text-base font-semibold">{text.currencyTitle}</h2>
+        <p className="text-sm text-ink/70">{text.currencyHint}</p>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {([["EUR", "Euro"], ["USD", "Dólar"], ["GBP", "Libra"], ["PEN", "Sol"]] as const).map(([code, label]) => (
+            <form key={code} action={setCurrencyAction}>
+              <input type="hidden" name="currency" value={code} />
+              <Button type="submit" className={`w-full ${session.currency === code ? "ring-2 ring-pine" : ""}`}>{label} · {code}</Button>
             </form>
           ))}
         </div>

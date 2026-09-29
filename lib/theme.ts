@@ -1,3 +1,8 @@
+import { withDatabase } from "@/lib/db/client";
+import { themes } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import type { CSSProperties } from "react";
+
 export const themeIds = ["emerald", "crimson", "purple", "ocean", "rose"] as const;
 
 export type ThemeId = (typeof themeIds)[number];
@@ -15,6 +20,41 @@ export const themeSwatches: Record<ThemeId, [string, string, string, string, str
 
 export function isTheme(value: string | undefined | null): value is ThemeId {
   return themeIds.includes(value as ThemeId);
+}
+
+const themeCache = new Map<string, { at: number; value: CSSProperties | null }>();
+
+// Los colores salen de la tabla themes. En local se recuerdan un momento para no abrir la base en cada clic.
+export async function themeVarsFor(code: string): Promise<CSSProperties | null> {
+  const cached = themeCache.get(code);
+  if (cached && Date.now() - cached.at < 30_000) return cached.value;
+  try {
+    const value = await withDatabase(async (db) => {
+      const [row] = await db.select().from(themes).where(eq(themes.code, code)).limit(1);
+      if (!row) return null;
+      return {
+        "--page": row.pageRgb,
+        "--surface": row.surfaceRgb,
+        "--ink": row.inkRgb,
+        "--primary": row.primaryRgb,
+        "--primary-dark": row.primaryDarkRgb,
+        "--soft": row.softRgb,
+        "--accent": row.accentRgb,
+        "--danger": row.dangerRgb,
+        "--income": row.incomeRgb,
+        "--expense": row.expenseRgb,
+        "--savings": row.savingsRgb,
+        "--chart-1": row.chart1Rgb,
+        "--chart-2": row.chart2Rgb,
+        "--chart-3": row.chart3Rgb,
+        "--chart-4": row.chart4Rgb,
+      } as CSSProperties;
+    });
+    themeCache.set(code, { at: Date.now(), value });
+    return value;
+  } catch {
+    return null;
+  }
 }
 
 export function themeCookie(theme: ThemeId) {

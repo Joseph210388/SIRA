@@ -28,9 +28,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const hour = hourIn(session.timezone);
   const greet = hour < 12 ? text.greetMorning : hour < 20 ? text.greetAfternoon : text.greetEvening;
   const kindLabel = (kind: string) => kind === "cash" ? text.kindCash : kind === "savings" ? text.kindSavings : text.kindCurrent;
-  const slices = data.accounts
+  const spendSlices = data.byCategory
+    .filter((item) => item.total > 0)
+    .map((item) => ({ label: categoryName(item.key, text), value: item.total }));
+  const accountSlices = data.accounts
     .filter((item) => item.balance > 0)
     .map((item) => ({ label: item.name, value: item.balance }));
+  const slices = spendSlices.length > 0 ? spendSlices : accountSlices;
+  const monthLabel = new Intl.DateTimeFormat(moneyLocale(session.locale), { month: "long", year: "numeric", timeZone: session.timezone }).format(new Date());
   const when = new Intl.DateTimeFormat(moneyLocale(session.locale), { dateStyle: "short", timeStyle: "short", timeZone: session.timezone });
   const movements = data.movements
     .filter((item) => !query || `${item.concept} ${item.accountName}`.toLowerCase().includes(query))
@@ -40,6 +45,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       accountName: item.accountName,
       amount: item.amount,
       direction: item.direction,
+      kind: item.kind,
       when: when.format(item.occurredAt),
     }));
   const sums = [0, 0, 0, 0];
@@ -62,11 +68,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   });
   const firstGoal = data.goals[0];
   return (
-    <HomeDashboard
+      <HomeDashboard
+        currency={session.currency}
       text={text}
       locale={session.locale}
       name={session.displayName}
       greet={greet}
+      monthLabel={monthLabel}
       total={data.total}
       monthIncome={data.monthIncome}
       monthExpense={data.monthExpense}

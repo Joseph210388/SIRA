@@ -64,7 +64,7 @@ function DigitRow({
           aria-label={`${label} ${index + 1}`}
           autoFocus={index === 0}
           disabled={disabled}
-          className="min-h-12 w-full rounded-2xl border border-[#E8DFC8] bg-[#FAF8F3] text-center text-lg text-[#14271F]"
+          className="min-h-12 w-full rounded-2xl border border-ink/15 bg-paper text-center text-lg text-ink"
           onPaste={onPaste}
           onKeyDown={(event) => onKeyDown(index, event)}
           onChange={(event) => {
@@ -150,8 +150,8 @@ export function PinGate({
 
   return (
     <div className="grid gap-3">
-      <h1 className="text-lg font-semibold text-[#14271F]">{text.securityTitle}</h1>
-      <p className="text-xs leading-5 text-[#3F6756]">{length === 6 ? text.vaultCodeHint : text.vaultPinHint}</p>
+      <h1 className="text-lg font-semibold text-ink">{text.securityTitle}</h1>
+      <p className="text-xs leading-5 text-pine/80">{length === 6 ? text.vaultCodeHint : text.vaultPinHint}</p>
       {message ? <p className="text-sm text-danger">{message}</p> : null}
       {gate === "verify" ? (
         <DigitRow key={shake} length={length} label={length === 6 ? text.code : text.pin} disabled={pending} shake={shake > 0} onComplete={reveal} />

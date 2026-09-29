@@ -6,10 +6,10 @@ export function ServiceWorker() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") {
-      navigator.serviceWorker.getRegistrations().then(async (registrations) => {
-        if (registrations.length === 0) return;
-        await Promise.all(registrations.map((registration) => registration.unregister()));
-        window.location.reload();
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister();
+        });
       });
       return;
     }

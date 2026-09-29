@@ -3,12 +3,13 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
+  );
 });
 
-self.addEventListener("fetch", (event) => {
-  const path = new URL(event.request.url).pathname;
-  // Los trozos de Next cambian en cada arranque. Si el worker los intercepta, al volver atrás el navegador pide un archivo que ya no existe.
-  if (path.startsWith("/_next/")) return;
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
-});
+// No hay evento fetch a propósito. Interceptar los archivos de Next en local
+// devolvía HTML donde el navegador esperaba JavaScript y la página quedaba en blanco.

@@ -1,6 +1,7 @@
 "use client";
 
 import { Field, Select } from "@/components/field";
+import { PasswordField } from "@/components/password-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PinGate } from "@/components/pin-gate";
@@ -100,17 +101,17 @@ export function RegisterForm({ text, error, initialStep }: { text: Copy; error?:
     <form onSubmit={onSubmit} className={`grid gap-3 ${phase === "out" ? "-translate-x-full transition-transform duration-500 ease-out motion-reduce:transition-none" : ""}`}>
       <div className="flex gap-1" aria-hidden>
         {steps.map((item, index) => (
-          <span key={item.title} className={`h-1 flex-1 rounded-full ${index <= step ? "bg-[#1A3329]" : "bg-[#1A3329]/15"}`} />
+          <span key={item.title} className={`h-1 flex-1 rounded-full ${index <= step ? "bg-pine" : "bg-pine/15"}`} />
         ))}
       </div>
       <p className="text-sm font-semibold">{text[steps[step].title]}</p>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      {step === 0 ? <p className="text-xs leading-5 text-[#3F6756]">{text.vaultContext}</p> : null}
+      {step === 0 ? <p className="text-xs leading-5 text-pine/80">{text.vaultContext}</p> : null}
 
       <div className={step === 0 ? "grid gap-3" : "hidden"}>
         <Field label={text.email}><Input name="email" type="email" required autoComplete="email" /></Field>
-        <Field label={text.password} hint={text.passwordHint}><Input name="password" type="password" required minLength={10} autoComplete="new-password" /></Field>
-        <Field label={text.passwordConfirm}><Input name="confirm" type="password" required minLength={10} autoComplete="new-password" /></Field>
+        <PasswordField label={text.password} name="password" hint={text.passwordHint} autoComplete="new-password" minLength={10} showLabel={text.showPassword} hideLabel={text.hidePassword} />
+        <PasswordField label={text.passwordConfirm} name="confirm" autoComplete="new-password" minLength={10} showLabel={text.showPassword} hideLabel={text.hidePassword} />
       </div>
       <div className={step === 1 ? "grid gap-3" : "hidden"}>
         <div className="grid grid-cols-2 gap-3">
@@ -144,9 +145,9 @@ export function RegisterForm({ text, error, initialStep }: { text: Copy; error?:
           <Button type="button" variant="ghost" className="rounded-full" onClick={() => setStep((value) => value - 1)}>{text.vaultPrevious}</Button>
         ) : null}
         {last ? (
-          <Button type="submit" disabled={pending} className="flex-1 rounded-full bg-[#1A3329] hover:bg-[#14271F]">{text.vaultCreate}</Button>
+          <Button type="submit" disabled={pending} className="flex-1 rounded-full bg-pine hover:bg-pine-dark">{text.vaultCreate}</Button>
         ) : (
-          <Button type="button" className="flex-1 rounded-full bg-[#1A3329] hover:bg-[#14271F]" onClick={(event) => { const form = event.currentTarget.form; if (form) advance(form); }}>{text.vaultNext}</Button>
+          <Button type="button" className="flex-1 rounded-full bg-pine hover:bg-pine-dark" onClick={(event) => { const form = event.currentTarget.form; if (form) advance(form); }}>{text.vaultNext}</Button>
         )}
       </div>
     </form>

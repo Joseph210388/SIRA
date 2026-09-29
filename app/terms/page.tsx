@@ -62,32 +62,32 @@ export default async function TermsPage() {
     <PublicPage text={text}>
       <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 pb-8 sm:px-6 lg:px-10">
         <header className="grid gap-3">
-          <p className={`${instrument.className} text-[#C88A36]`}>Documento de producto · 2026-09-28</p>
-          <h1 className={`${playfair.className} text-3xl font-semibold leading-tight text-[#14271F] sm:text-5xl`}>Marco y condiciones</h1>
-          <p className="max-w-3xl text-sm leading-6 text-[#3F6756] sm:text-base">
+          <p className={`${instrument.className} text-accent`}>Documento de producto · 2026-09-28</p>
+          <h1 className={`${playfair.className} text-3xl font-semibold leading-tight text-ink sm:text-5xl`}>Marco y condiciones</h1>
+          <p className="max-w-3xl text-sm leading-6 text-pine/80 sm:text-base">
             Condiciones de uso de SIRA, Sistema de Ingresos, Rentas y Ahorro. Describen el producto que existe, no la bóveda institucional del diseño.
           </p>
         </header>
 
         <section className="grid gap-3 sm:grid-cols-2">
           {clauses.map((clause) => (
-            <article key={clause.title} className="rounded-[2rem] border border-[#E8DFC8] bg-white/90 p-5">
+            <article key={clause.title} className="rounded-[2rem] border border-ink/15 bg-white/90 p-5">
               <h2 className="font-semibold">{clause.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#3F6756]">{clause.body}</p>
+              <p className="mt-2 text-sm leading-6 text-pine/80">{clause.body}</p>
             </article>
           ))}
         </section>
 
         <section className="grid gap-4">
           {sections.map((section) => (
-            <article key={section.title} className="grid gap-2 border-t border-[#E8DFC8] pt-4">
+            <article key={section.title} className="grid gap-2 border-t border-ink/15 pt-4">
               <h2 className={`${playfair.className} text-2xl font-semibold`}>{section.title}</h2>
-              <p className="max-w-3xl text-sm leading-6 text-[#3F6756] sm:text-base">{section.body}</p>
+              <p className="max-w-3xl text-sm leading-6 text-pine/80 sm:text-base">{section.body}</p>
             </article>
           ))}
         </section>
 
-        <section className="grid gap-3 rounded-[2rem] bg-[#14271F] p-6 text-[#F7F6F2] lg:grid-cols-2">
+        <section className="grid gap-3 rounded-[2rem] bg-ink p-6 text-paper lg:grid-cols-2">
           <div>
             <h2 className={`${playfair.className} text-2xl`}>Lo que hace la aplicación</h2>
             <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/80">
@@ -107,7 +107,7 @@ export default async function TermsPage() {
           </div>
         </section>
 
-        <p className="text-sm text-[#3F6756]">
+        <p className="text-sm text-pine/80">
           Al crear la cuenta marcas la casilla y queda registrada la versión 2026-09-28.
           {" "}
           <Link href="/register" className="underline">Crear la bóveda</Link>

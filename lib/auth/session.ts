@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { randomUUID } from "crypto";
+import { cache } from "react";
 
 const cookieName = "sira_session";
 const maxAgeSeconds = 60 * 60 * 24 * 14;
@@ -16,6 +17,7 @@ export type SessionContext = {
   locale: string;
   timezone: string;
   theme: string;
+  currency: string;
   displayName: string;
 };
 
@@ -119,7 +121,8 @@ export async function clearSession() {
   jar.set(cookieName, "", { ...cookieOptions(), maxAge: 0 });
 }
 
-export async function getSession(): Promise<SessionContext | null> {
+// La misma petición (layout y página) comparte una sola lectura.
+export const getSession = cache(async (): Promise<SessionContext | null> => {
   const jar = await cookies();
   const token = jar.get(cookieName)?.value;
   if (!token) {
@@ -146,6 +149,7 @@ export async function getSession(): Promise<SessionContext | null> {
         locale: users.locale,
         timezone: users.timezone,
         theme: users.theme,
+        currency: users.currencyCode,
         displayName: profiles.displayName,
       })
       .from(sessions)
@@ -166,10 +170,11 @@ export async function getSession(): Promise<SessionContext | null> {
       locale: row.locale,
       timezone: row.timezone,
       theme: row.theme,
+      currency: row.currency,
       displayName: row.displayName,
     };
   });
-}
+});
 
 export async function currentToken() {
   const jar = await cookies();

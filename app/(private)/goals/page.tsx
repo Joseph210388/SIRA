@@ -36,7 +36,7 @@ export default async function GoalsPage() {
           return (
             <li key={goal.id} className="rounded-2xl bg-white p-4 ring-1 ring-ink/10">
               <p className="font-medium">{goal.name}</p>
-              <p className="text-sm">{text.progress}: {formatMoney(goal.balance, session.locale)} / {formatMoney(goal.target, session.locale)}</p>
+              <p className="text-sm">{text.progress}: {formatMoney(goal.balance, session.locale, session.currency)} / {formatMoney(goal.target, session.locale, session.currency)}</p>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-mist">
                 <div style={{ width: `${ratio}%`, height: "100%", background: "rgb(var(--primary))" }} />
               </div>

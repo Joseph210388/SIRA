@@ -62,7 +62,7 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
               <span className="text-ink/60">{item.accountName} · {new Intl.DateTimeFormat(moneyLocale(session.locale), { dateStyle: "short", timeStyle: "short" }).format(item.occurredAt)}</span>
             </span>
             <span className={item.direction === "out" ? "text-danger" : "text-pine"}>
-              {item.direction === "out" ? "−" : "+"}{formatMoney(item.amount, session.locale)}
+              {item.direction === "out" ? "−" : "+"}{formatMoney(item.amount, session.locale, session.currency)}
             </span>
           </li>
         ))}

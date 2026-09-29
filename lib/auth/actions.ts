@@ -15,15 +15,17 @@ import {
 import { isLocale } from "@/lib/i18n";
 import { isTheme, themeCookie } from "@/lib/theme";
 import { ageInYears } from "@/lib/money";
+import { cleanEmail, cleanLabel } from "@/lib/validation";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { redirectWithError } from "@/lib/redirect";
 import { redirect } from "next/navigation";
 import { Secret, TOTP } from "otpauth";
 import bcrypt from "bcryptjs";
 
 const termsVersion = "2026-09-28";
 function fail(path: string, code: string): never {
-  redirect(`${path}?error=${code}`);
+  redirectWithError(path, code);
 }
 
 function isRedirect(error: unknown) {
@@ -80,25 +82,24 @@ export async function setLocaleAction(formData: FormData) {
 }
 
 export async function registerAction(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = cleanEmail(String(formData.get("email") ?? ""));
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
-  const firstName = String(formData.get("firstName") ?? "").trim();
-  const lastName = String(formData.get("lastName") ?? "").trim();
-  const displayName = String(formData.get("displayName") ?? "").trim();
+  const firstName = cleanLabel(String(formData.get("firstName") ?? ""), 40);
+  const lastName = cleanLabel(String(formData.get("lastName") ?? ""), 40);
+  const displayName = cleanLabel(String(formData.get("displayName") ?? ""), 40);
   const country = String(formData.get("country") ?? "");
-  const city = String(formData.get("city") ?? "").trim();
-  const locality = String(formData.get("locality") ?? "").trim();
+  const city = cleanLabel(String(formData.get("city") ?? ""), 60);
+  const locality = cleanLabel(String(formData.get("locality") ?? ""), 60);
   const phone = String(formData.get("phone") ?? "").trim();
   const birthDate = String(formData.get("birthDate") ?? "");
   const accepted = formData.get("terms") === "on";
 
   if (!accepted) fail("/register", "terms");
   if (password.length < 10 || password !== confirm) fail("/register", "password");
-  if (!email.includes("@") || firstName.length < 1 || lastName.length < 1) fail("/register", "generic");
-  if (displayName.length < 1 || displayName.length > 40) fail("/register", "generic");
+  if (!email || !firstName || !lastName || !displayName || !city || !locality) fail("/register", "generic");
   if (!countries.some((item) => item.code === country)) fail("/register", "age");
-  if (city.length < 1 || locality.length < 1 || phone.length < 6) fail("/register", "generic");
+  if (phone.length < 6 || phone.length > 20 || !/^[0-9+().\s-]+$/.test(phone)) fail("/register", "generic");
   const age = ageInYears(birthDate);
   if (age === null) fail("/register", "age");
 
@@ -156,8 +157,9 @@ export async function registerAction(formData: FormData) {
 }
 
 export async function loginAction(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = cleanEmail(String(formData.get("email") ?? ""));
   const password = String(formData.get("password") ?? "");
+  if (!email) fail("/login", "credentials");
   try {
     const found = await withDatabase(async (_db, client) => {
       const result = await client.query<{ user_id: string; password_hash: string }>(

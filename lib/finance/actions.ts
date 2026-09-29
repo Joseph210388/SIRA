@@ -14,11 +14,14 @@ import {
   spaceInvites,
   spaceMembers,
   spaces,
+  userCategoryPicks,
   users,
 } from "@/lib/db/schema";
 import { timezones } from "@/lib/countries";
 import { parseAmountToMinor } from "@/lib/money";
 import { isTheme, themeCookie } from "@/lib/theme";
+import { redirectWithError } from "@/lib/redirect";
+import { allowedNext, cleanConcept, cleanLabel } from "@/lib/validation";
 import { and, eq, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -26,7 +29,7 @@ import { redirect } from "next/navigation";
 const vague = new Set(["otros", "otro", "other", "altro", "autre", "sonstiges"]);
 
 function fail(path: string, code: string): never {
-  redirect(`${path}?error=${code}`);
+  redirectWithError(path, code);
 }
 
 function isRedirect(error: unknown) {
@@ -47,48 +50,57 @@ function zonedToUtc(localValue: string, timeZone: string) {
   return new Date(asUtc.getTime() - (zoneTime - utcTime));
 }
 
+function minorBalance(rows: { direction: string; amountCiphertext: Buffer }[]) {
+  return rows.reduce((sum, item) => {
+    const amount = Number(decryptString(asBuffer(item.amountCiphertext)));
+    return sum + (item.direction === "in" ? amount : -amount);
+  }, 0);
+}
+
 export async function createAccountAction(formData: FormData) {
   const session = await requireUser();
-  const name = String(formData.get("name") ?? "").trim();
-  const kind = String(formData.get("kind") ?? "");
+  const done = allowedNext(String(formData.get("next") ?? ""), "/accounts");
+  const back = done === "/" ? "/" : "/accounts";
+  const name = cleanLabel(String(formData.get("name") ?? ""), 40);
+  const family = String(formData.get("family") ?? "");
+  const bankKind = String(formData.get("bankKind") ?? "current");
+  const origin = String(formData.get("origin") ?? "already");
   const minor = parseAmountToMinor(String(formData.get("amount") ?? ""));
-  const cashOrigin = String(formData.get("cashOrigin") ?? "already");
   const sourceId = String(formData.get("sourceId") ?? "");
-  if (name.length < 1 || minor === null || !["current", "savings", "cash"].includes(kind)) fail("/accounts", "generic");
-  if (kind === "cash" && cashOrigin === "withdrawal" && minor <= 0) fail("/accounts", "balance");
+  const incomeKey = String(formData.get("incomeKey") ?? "");
+  const kind = family === "cash" ? "cash" : bankKind;
+  if (!name || minor === null || (kind !== "current" && kind !== "savings" && kind !== "cash")) fail(back, "generic");
+  const needsSource = (kind === "cash" && origin === "withdrawal") || (kind !== "cash" && origin === "transfer");
+  if (needsSource && minor <= 0) fail(back, "balance");
   try {
     await withDatabase(async (db, client) => {
       await assumeUser(client, session.userId);
+      const [person] = await db.select({ currencyCode: users.currencyCode }).from(users).where(eq(users.id, session.userId)).limit(1);
       const accountId = randomId();
       await db.insert(accounts).values({
         id: accountId,
         ownerUserId: session.userId,
-        kind: kind as "current" | "savings" | "cash",
+        kind,
         nameCiphertext: encryptString(name),
-        currencyCode: "EUR",
+        currencyCode: person?.currencyCode ?? "EUR",
       });
-      if (kind === "cash" && cashOrigin === "withdrawal") {
+      if (needsSource) {
         const sourceMoves = await db.select().from(movements).where(eq(movements.accountId, sourceId));
-        const balance = sourceMoves.reduce((sum, item) => {
-          const amount = Number(decryptString(asBuffer(item.amountCiphertext)));
-          return sum + (item.direction === "in" ? amount : -amount);
-        }, 0);
-        if (balance < minor) fail("/accounts", "balance");
+        if (minorBalance(sourceMoves) < minor) fail(back, "balance");
         const groupId = randomId();
-        const concept = encryptString("withdrawal");
+        const moveOrigin = kind === "cash" ? "withdrawal" : "between_accounts";
         const amount = encryptString(String(minor));
-        const amountOut = encryptString(String(minor));
         await db.insert(movements).values([
           {
             accountId: sourceId,
             actorUserId: session.userId,
             kind: "transfer",
             direction: "out",
-            origin: "withdrawal",
+            origin: moveOrigin,
             groupId,
             counterpartyAccountId: accountId,
-            conceptCiphertext: concept,
-            amountCiphertext: amountOut,
+            conceptCiphertext: encryptString(moveOrigin),
+            amountCiphertext: amount,
             occurredAt: new Date(),
           },
           {
@@ -96,27 +108,28 @@ export async function createAccountAction(formData: FormData) {
             actorUserId: session.userId,
             kind: "transfer",
             direction: "in",
-            origin: "withdrawal",
+            origin: moveOrigin,
             groupId,
             counterpartyAccountId: sourceId,
-            conceptCiphertext: encryptString("withdrawal"),
+            conceptCiphertext: encryptString(moveOrigin),
             amountCiphertext: amount,
             occurredAt: new Date(),
           },
         ]);
         return;
       }
-      if (kind === "cash" && cashOrigin === "gift") {
-        const [gift] = await db.select().from(categories).where(and(eq(categories.kind, "income"), eq(categories.key, "gift"))).limit(1);
-        if (!gift) fail("/accounts", "database");
+      if ((kind === "cash" && origin === "gift") || (kind !== "cash" && origin === "income")) {
+        const key = kind === "cash" ? "gift" : incomeKey;
+        const [category] = await db.select().from(categories).where(and(eq(categories.kind, "income"), eq(categories.key, key))).limit(1);
+        if (!category) fail(back, "database");
         await db.insert(movements).values({
           accountId,
           actorUserId: session.userId,
           kind: "income",
           direction: "in",
-          origin: "gift",
-          categoryId: gift.id,
-          conceptCiphertext: encryptString("gift"),
+          origin: key === "gift" ? "gift" : "external",
+          categoryId: category.id,
+          conceptCiphertext: encryptString(key),
           amountCiphertext: encryptString(String(minor)),
           occurredAt: new Date(),
         });
@@ -137,9 +150,11 @@ export async function createAccountAction(formData: FormData) {
     });
   } catch (error) {
     if (isRedirect(error)) throw error;
-    fail("/accounts", "database");
+    const cause = error instanceof Error && "cause" in error && error.cause instanceof Error ? error.cause.message : "";
+    console.error("createAccountAction", cause.split("\n")[0] || (error instanceof Error ? error.message : "database"));
+    fail(back, "database");
   }
-  redirect("/accounts");
+  redirect(done);
 }
 
 export async function createMovementAction(formData: FormData) {
@@ -147,10 +162,10 @@ export async function createMovementAction(formData: FormData) {
   const kind = String(formData.get("kind") ?? "");
   const accountId = String(formData.get("accountId") ?? "");
   const categoryId = String(formData.get("categoryId") ?? "");
-  const concept = String(formData.get("concept") ?? "").trim();
+  const concept = cleanConcept(String(formData.get("concept") ?? ""));
   const minor = parseAmountToMinor(String(formData.get("amount") ?? ""));
   const when = zonedToUtc(String(formData.get("when") ?? ""), session.timezone);
-  if ((kind !== "expense" && kind !== "income") || !when || minor === null || minor <= 0 || concept.length < 2) {
+  if ((kind !== "expense" && kind !== "income") || !when || minor === null || minor <= 0 || !concept) {
     fail("/movements", "concept");
   }
   try {
@@ -219,11 +234,11 @@ export async function saveBudgetAction(formData: FormData) {
 
 export async function saveGoalAction(formData: FormData) {
   const session = await requireUser();
-  const name = String(formData.get("name") ?? "").trim();
+  const name = cleanLabel(String(formData.get("name") ?? ""), 40);
   const accountId = String(formData.get("accountId") ?? "");
   const minor = parseAmountToMinor(String(formData.get("amount") ?? ""));
   const targetDate = String(formData.get("targetDate") ?? "");
-  if (name.length < 2 || minor === null || minor <= 0) fail("/goals", "generic");
+  if (!name || minor === null || minor <= 0) fail("/goals", "generic");
   try {
     await withDatabase(async (db, client) => {
       await assumeUser(client, session.userId);
@@ -341,19 +356,57 @@ export async function saveSettingsAction(formData: FormData) {
 
 export async function setThemeAction(formData: FormData) {
   const session = await requireUser();
+  const next = allowedNext(String(formData.get("next") ?? ""), "/settings");
+  const back = next === "/" ? "/" : "/settings";
   const theme = String(formData.get("theme") ?? "");
-  if (!isTheme(theme)) fail("/settings", "generic");
+  if (!isTheme(theme)) fail(back, "generic");
   try {
     await withDatabase(async (db, client) => {
       await assumeUser(client, session.userId);
-      await db.update(users).set({ theme }).where(eq(users.id, session.userId));
+      await db.update(users).set({ theme, themeChosenAt: new Date() }).where(eq(users.id, session.userId));
+    });
+  } catch (error) {
+    if (isRedirect(error)) throw error;
+    fail(back, "database");
+  }
+  const jar = await cookies();
+  const cookie = themeCookie(theme);
+  jar.set(cookie.name, cookie.value, cookie.options);
+  redirect(next);
+}
+
+const currencyCodes = ["PEN", "USD", "EUR", "GBP"];
+
+export async function setCurrencyAction(formData: FormData) {
+  const session = await requireUser();
+  const currency = String(formData.get("currency") ?? "");
+  if (!currencyCodes.includes(currency)) fail("/settings", "generic");
+  try {
+    await withDatabase(async (db, client) => {
+      await assumeUser(client, session.userId);
+      await db.update(users).set({ currencyCode: currency }).where(eq(users.id, session.userId));
     });
   } catch (error) {
     if (isRedirect(error)) throw error;
     fail("/settings", "database");
   }
-  const jar = await cookies();
-  const cookie = themeCookie(theme);
-  jar.set(cookie.name, cookie.value, cookie.options);
   redirect("/settings");
+}
+
+export async function saveCategoriesAction(formData: FormData) {
+  const session = await requireUser();
+  const picked = formData.getAll("category").map(String).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  if (picked.length < 1) fail("/", "generic");
+  try {
+    await withDatabase(async (db, client) => {
+      await assumeUser(client, session.userId);
+      await db.delete(userCategoryPicks).where(eq(userCategoryPicks.userId, session.userId));
+      await db.insert(userCategoryPicks).values(picked.map((categoryId) => ({ userId: session.userId, categoryId })));
+      await db.update(users).set({ categoriesChosenAt: new Date() }).where(eq(users.id, session.userId));
+    });
+  } catch (error) {
+    if (isRedirect(error)) throw error;
+    fail("/", "database");
+  }
+  redirect("/");
 }
