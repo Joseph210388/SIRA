@@ -259,9 +259,10 @@ export const budgets = pgTable(
 export const savingsGoals = pgTable("savings_goals", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull(),
-  accountId: uuid("account_id").notNull(),
+  accountId: uuid("account_id"),
   nameCiphertext: bytea("name_ciphertext").notNull(),
   targetCiphertext: bytea("target_ciphertext").notNull(),
+  savedCiphertext: bytea("saved_ciphertext"),
   targetDate: date("target_date"),
   encryptionKeyVersion: smallint("encryption_key_version").notNull().default(1),
   archivedAt: timestamp("archived_at", { withTimezone: true, mode: "date" }),

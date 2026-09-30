@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { saveBudgetAction } from "@/lib/finance/actions";
 import { getSession } from "@/lib/auth/session";
 import { Field, Select } from "@/components/field";
@@ -19,9 +20,11 @@ export default async function BudgetsPage() {
   const expenseCategories = data.categories.filter((item) => item.kind === "expense");
   return (
     <section className="grid gap-6">
-      <h1 className="text-title font-semibold">{text.budgetsTitle}</h1>
-      <p className="text-sm text-ink/70">{text.budgetHint}</p>
-      <form action={saveBudgetAction} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink/10 sm:grid-cols-[1fr_10rem_auto] sm:items-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-title font-semibold">{text.budgetsTitle}</h1>
+        <FormDialog label={text.newBudget} title={text.budgetsTitle} closeLabel={text.close}>
+          <p className="text-sm text-ink/70">{text.budgetHint}</p>
+          <form action={saveBudgetAction} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink/10">
         <Field label={text.category}>
           <Select name="categoryId">
             {expenseCategories.map((category) => (
@@ -31,7 +34,9 @@ export default async function BudgetsPage() {
         </Field>
         <Field label={text.limit}><Input name="amount" inputMode="decimal" required /></Field>
         <Button type="submit">{text.save}</Button>
-      </form>
+          </form>
+        </FormDialog>
+      </div>
       <ul className="grid gap-3">
         {data.budgets.map((budget) => {
           const category = expenseCategories.find((item) => item.id === budget.categoryId);

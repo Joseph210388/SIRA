@@ -1,6 +1,6 @@
 "use server";
 
-import { createSession, currentToken, markMfaVerified } from "@/lib/auth/session";
+import { createSession, currentToken, getSession, markMfaVerified } from "@/lib/auth/session";
 import { countries, timezoneForCountry } from "@/lib/countries";
 import { asBuffer, decryptString, encryptString, randomId, sha256 } from "@/lib/crypto";
 import { assumeUser, withDatabase } from "@/lib/db/client";
@@ -335,6 +335,57 @@ export async function pendingFactor(userId: string) {
     const [row] = await db.select({ method: userMfa.method }).from(userMfa).where(eq(userMfa.userId, userId)).limit(1);
     return row?.method ?? null;
   });
+}
+
+export async function saveProfileAction(formData: FormData) {
+  const session = await getSession();
+  if (!session?.mfa) redirect("/login");
+  const backUrl = new URL(safeNext(String(formData.get("next") ?? "/")), "http://sira.local");
+  backUrl.searchParams.set("form", "profile");
+  const back = `${backUrl.pathname}${backUrl.search}`;
+  const displayName = cleanLabel(String(formData.get("displayName") ?? ""), 40);
+  const firstName = cleanLabel(String(formData.get("firstName") ?? ""), 40);
+  const lastName = cleanLabel(String(formData.get("lastName") ?? ""), 40);
+  const city = cleanLabel(String(formData.get("city") ?? ""), 60);
+  const locality = cleanLabel(String(formData.get("locality") ?? ""), 60);
+  const phone = String(formData.get("phone") ?? "").trim();
+  const birthDate = String(formData.get("birthDate") ?? "");
+  if (!displayName || !firstName || !lastName || !city || !locality) fail(back, "generic");
+  if (phone.length < 6 || phone.length > 20 || !/^[0-9+().\s-]+$/.test(phone)) fail(back, "generic");
+  const age = ageInYears(birthDate);
+  if (age === null) fail(back, "age");
+  try {
+    await withDatabase(async (db, client) => {
+      await assumeUser(client, session.userId);
+      const [person] = await db.select({ countryCode: users.countryCode }).from(users).where(eq(users.id, session.userId)).limit(1);
+      const rule = await client.query<{ minimum_age: number }>(
+        "select minimum_age from country_age_rules where country_code = $1",
+        [person?.countryCode ?? ""],
+      );
+      const minimum = rule.rows[0]?.minimum_age;
+      if (!minimum || age < minimum) fail(back, "age");
+      await db.update(users).set({
+        firstNameCiphertext: encryptString(firstName),
+        lastNameCiphertext: encryptString(lastName),
+        phoneCiphertext: encryptString(phone),
+        cityCiphertext: encryptString(city),
+        localityCiphertext: encryptString(locality),
+        birthDateCiphertext: encryptString(birthDate),
+        updatedAt: new Date(),
+      }).where(eq(users.id, session.userId));
+      await db.update(profiles).set({
+        displayName,
+        updatedAt: new Date(),
+      }).where(eq(profiles.userId, session.userId));
+    });
+  } catch (error) {
+    if (isRedirect(error)) throw error;
+    fail(back, "database");
+  }
+  const done = new URL(safeNext(String(formData.get("next") ?? "/")), "http://sira.local");
+  done.searchParams.delete("form");
+  done.searchParams.delete("error");
+  redirect(`${done.pathname}${done.search}`);
 }
 
 export async function takeRecoveryCodes() {

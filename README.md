@@ -39,12 +39,12 @@ erDiagram
   accounts ||--o{ account_shares : compartida
   users ||--o{ account_shares : comparte
   accounts ||--o{ movements : saldo
-  accounts ||--o{ savings_goals : progreso
+  accounts |o--o{ savings_goals : progreso
   categories ||--o{ movements : clasifica
   categories ||--o{ budgets : mes
 ```
 
-Una persona (`users`) tiene un perfil visible, un segundo factor y un aviso. Puede tener varias cuentas, sesiones y movimientos. El dúo es un `spaces` de como mucho dos personas. Compartir no abre todas las cuentas: solo las que están en `account_shares`.
+Una persona (`users`) tiene un perfil visible, un segundo factor y un aviso. Puede tener varias cuentas, sesiones y movimientos. La meta de ahorro puede existir sin una cuenta. El dúo es un `spaces` de como mucho dos personas. Compartir no abre todas las cuentas: solo las que están en `account_shares`.
 
 | Grupo | Tablas | Para qué |
 | --- | --- | --- |

@@ -18,6 +18,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { timezones } from "@/lib/countries";
+import { zonedToUtc } from "@/lib/period";
 import { parseAmountToMinor } from "@/lib/money";
 import { isTheme, themeCookie } from "@/lib/theme";
 import { redirectWithError } from "@/lib/redirect";
@@ -40,14 +41,6 @@ async function requireUser() {
   const session = await getSession();
   if (!session?.mfa) redirect("/login");
   return session;
-}
-
-function zonedToUtc(localValue: string, timeZone: string) {
-  const asUtc = new Date(`${localValue}:00Z`);
-  if (Number.isNaN(asUtc.getTime())) return null;
-  const utcTime = new Date(asUtc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-  const zoneTime = new Date(asUtc.toLocaleString("en-US", { timeZone })).getTime();
-  return new Date(asUtc.getTime() - (zoneTime - utcTime));
 }
 
 function minorBalance(rows: { direction: string; amountCiphertext: Buffer }[]) {
@@ -166,20 +159,20 @@ export async function createMovementAction(formData: FormData) {
   const minor = parseAmountToMinor(String(formData.get("amount") ?? ""));
   const when = zonedToUtc(String(formData.get("when") ?? ""), session.timezone);
   if ((kind !== "expense" && kind !== "income") || !when || minor === null || minor <= 0 || !concept) {
-    fail("/movements", "concept");
+    fail("/accounts?form=movement", "concept");
   }
   try {
     await withDatabase(async (db, client) => {
       await assumeUser(client, session.userId);
       const [category] = await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1);
-      if (!category || category.kind !== kind) fail("/movements", "generic");
+      if (!category || category.kind !== kind) fail("/accounts?form=movement", "generic");
       if (category.requiresSpecificConcept && (concept.length < 3 || vague.has(concept.toLowerCase()))) {
-        fail("/movements", "concept");
+        fail("/accounts?form=movement", "concept");
       }
       if (kind === "expense") {
         const rows = await db.select().from(movements).where(eq(movements.accountId, accountId));
         const balance = rows.reduce((sum, item) => sum + (item.direction === "in" ? 1 : -1) * Number(decryptString(asBuffer(item.amountCiphertext))), 0);
-        if (balance < minor) fail("/movements", "balance");
+        if (balance < minor) fail("/accounts?form=movement", "balance");
       }
       await db.insert(movements).values({
         accountId,
@@ -195,9 +188,9 @@ export async function createMovementAction(formData: FormData) {
     });
   } catch (error) {
     if (isRedirect(error)) throw error;
-    fail("/movements", "database");
+    fail("/accounts?form=movement", "database");
   }
-  redirect("/movements");
+  redirect("/accounts");
 }
 
 export async function saveBudgetAction(formData: FormData) {
@@ -234,29 +227,57 @@ export async function saveBudgetAction(formData: FormData) {
 
 export async function saveGoalAction(formData: FormData) {
   const session = await requireUser();
+  const back = String(formData.get("next") ?? "") === "/" ? "/?form=goal" : "/goals?form=goal";
+  const done = back.startsWith("/?") ? "/" : "/goals";
   const name = cleanLabel(String(formData.get("name") ?? ""), 40);
-  const accountId = String(formData.get("accountId") ?? "");
   const minor = parseAmountToMinor(String(formData.get("amount") ?? ""));
+  const startedRaw = String(formData.get("saved") ?? "").trim();
+  const started = startedRaw === "" ? 0 : parseAmountToMinor(startedRaw);
   const targetDate = String(formData.get("targetDate") ?? "");
-  if (!name || minor === null || minor <= 0) fail("/goals", "generic");
+  if (!name || minor === null || minor <= 0 || started === null || started < 0) fail(back, "generic");
   try {
     await withDatabase(async (db, client) => {
       await assumeUser(client, session.userId);
-      const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId)).limit(1);
-      if (!account || account.kind !== "savings") fail("/goals", "generic");
       await db.insert(savingsGoals).values({
         userId: session.userId,
-        accountId,
         nameCiphertext: encryptString(name),
         targetCiphertext: encryptString(String(minor)),
+        savedCiphertext: encryptString(String(started)),
         targetDate: targetDate || null,
       });
     });
   } catch (error) {
     if (isRedirect(error)) throw error;
-    fail("/goals", "database");
+    const cause = error instanceof Error && "cause" in error && error.cause instanceof Error ? error.cause.message : "";
+    console.error("saveGoalAction", cause.split("\n")[0] || (error instanceof Error ? error.message : "database"));
+    fail(back, "database");
   }
-  redirect("/goals");
+  redirect(done);
+}
+
+const goalIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function addToGoalAction(formData: FormData) {
+  const session = await requireUser();
+  const goalId = String(formData.get("goalId") ?? "");
+  const extra = parseAmountToMinor(String(formData.get("amount") ?? ""));
+  if (!goalIdPattern.test(goalId) || extra === null || extra <= 0) fail("/?form=add", "generic");
+  try {
+    await withDatabase(async (db, client) => {
+      await assumeUser(client, session.userId);
+      const [goal] = await db.select().from(savingsGoals).where(and(eq(savingsGoals.id, goalId), eq(savingsGoals.userId, session.userId), isNull(savingsGoals.archivedAt))).limit(1);
+      if (!goal) fail("/?form=add", "generic");
+      const current = goal.savedCiphertext ? Number(decryptString(asBuffer(goal.savedCiphertext))) : 0;
+      const next = (Number.isFinite(current) ? current : 0) + extra;
+      await db.update(savingsGoals).set({ savedCiphertext: encryptString(String(next)) }).where(eq(savingsGoals.id, goalId));
+    });
+  } catch (error) {
+    if (isRedirect(error)) throw error;
+    const cause = error instanceof Error && "cause" in error && error.cause instanceof Error ? error.cause.message : "";
+    console.error("addToGoalAction", cause.split("\n")[0] || (error instanceof Error ? error.message : "database"));
+    fail("/?form=add", "database");
+  }
+  redirect(`/?goal=${goalId}`);
 }
 
 export async function createInviteAction() {

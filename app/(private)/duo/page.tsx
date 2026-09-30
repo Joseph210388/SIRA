@@ -1,3 +1,4 @@
+import { FormDialog } from "@/components/form-dialog";
 import { acceptInviteAction, toggleShareAction } from "@/lib/finance/actions";
 import { getSession } from "@/lib/auth/session";
 import { InviteButton } from "@/components/invite-button";
@@ -23,10 +24,12 @@ export default async function DuoPage() {
       {!data.hasSpace ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <InviteButton label={text.createCode} once={text.inviteOnce} />
-          <form action={acceptInviteAction} className="grid gap-3">
-            <Field label={text.code}><Input name="code" required autoCapitalize="characters" /></Field>
-            <Button type="submit">{text.acceptCode}</Button>
-          </form>
+          <FormDialog label={text.acceptCode} title={text.acceptCode} closeLabel={text.close}>
+            <form action={acceptInviteAction} className="grid gap-3 rounded-2xl bg-white p-4 ring-1 ring-ink/10">
+              <Field label={text.code}><Input name="code" required autoCapitalize="characters" /></Field>
+              <Button type="submit">{text.save}</Button>
+            </form>
+          </FormDialog>
         </div>
       ) : (
         <ul className="grid gap-3">

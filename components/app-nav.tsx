@@ -1,14 +1,13 @@
 "use client";
 
 import type { Copy } from "@/lib/i18n";
-import { Home, Landmark, ArrowLeftRight, PieChart, Target, Users, Settings } from "lucide-react";
+import { Home, Landmark, PieChart, Target, Users, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/", key: "navHome", icon: Home },
   { href: "/accounts", key: "navAccounts", icon: Landmark },
-  { href: "/movements", key: "navMovements", icon: ArrowLeftRight },
   { href: "/budgets", key: "navBudgets", icon: PieChart },
   { href: "/goals", key: "navGoals", icon: Target },
   { href: "/duo", key: "navDuo", icon: Users },
@@ -17,10 +16,11 @@ const items = [
 
 export function AppNav({ text, variant }: { text: Copy; variant: "side" | "bar" }) {
   const pathname = usePathname();
+  const visible = variant === "side" ? items.filter((item) => item.key !== "navSettings") : items;
   if (variant === "bar") {
     return (
       <nav className="fixed inset-x-3 bottom-3 z-20 flex gap-1 overflow-x-auto rounded-[1.5rem] bg-white px-2 py-2 shadow-[0_8px_30px_rgba(20,39,31,0.08)] ring-1 ring-ink/10 lg:hidden">
-        {items.map((item) => {
+        {visible.map((item) => {
           const Icon = item.icon;
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
@@ -40,7 +40,7 @@ export function AppNav({ text, variant }: { text: Copy; variant: "side" | "bar" 
   }
   return (
     <nav className="mt-6 grid gap-1">
-      {items.map((item) => {
+      {visible.map((item) => {
         const Icon = item.icon;
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (

@@ -5,6 +5,7 @@ import { loadFinance } from "@/lib/finance/load";
 import { categoryName, copy } from "@/lib/i18n";
 import { appCopy } from "@/lib/i18n-db";
 import { moneyLocale } from "@/lib/money";
+import { formatPeriodLabel, parsePeriod } from "@/lib/period";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -14,7 +15,7 @@ function hourIn(timeZone: string) {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(new Date()));
 }
 
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ q?: string; from?: string; to?: string; form?: string; error?: string; goal?: string }> }) {
   const session = await getSession();
   if (!session) {
     const jar = await cookies();
@@ -22,9 +23,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   }
   if (!session.mfa) redirect("/login");
   const text = await appCopy(session.locale);
-  const data = await loadFinance(session.userId, session.timezone);
   const params = await searchParams;
+  const period = parsePeriod(params.from, params.to, session.timezone);
+  const data = await loadFinance(session.userId, session.timezone, period);
   const query = (params.q ?? "").trim().toLowerCase();
+  const formError = params.error === "generic" ? text.errorGeneric : params.error ? text.errorDatabase : null;
+  const createNotice = params.form === "goal" ? formError : null;
+  const addNotice = params.form === "add" ? formError : null;
   const hour = hourIn(session.timezone);
   const greet = hour < 12 ? text.greetMorning : hour < 20 ? text.greetAfternoon : text.greetEvening;
   const kindLabel = (kind: string) => kind === "cash" ? text.kindCash : kind === "savings" ? text.kindSavings : text.kindCurrent;
@@ -35,7 +40,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     .filter((item) => item.balance > 0)
     .map((item) => ({ label: item.name, value: item.balance }));
   const slices = spendSlices.length > 0 ? spendSlices : accountSlices;
-  const monthLabel = new Intl.DateTimeFormat(moneyLocale(session.locale), { month: "long", year: "numeric", timeZone: session.timezone }).format(new Date());
+  const monthLabel = formatPeriodLabel(period, moneyLocale(session.locale), text.wholeMonth);
   const when = new Intl.DateTimeFormat(moneyLocale(session.locale), { dateStyle: "short", timeStyle: "short", timeZone: session.timezone });
   const movements = data.movements
     .filter((item) => !query || `${item.concept} ${item.accountName}`.toLowerCase().includes(query))
@@ -66,7 +71,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     const name = category?.key ? categoryName(category.key, text) : category?.name || text.cat_other;
     return { name, spent, limit: item.limit };
   });
-  const firstGoal = data.goals[0];
   return (
       <HomeDashboard
         currency={session.currency}
@@ -78,16 +82,21 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       total={data.total}
       monthIncome={data.monthIncome}
       monthExpense={data.monthExpense}
+      incomeLabel={period.wholeMonth ? text.incomeMonth : text.income}
+      expenseLabel={period.wholeMonth ? text.expenseMonth : text.expense}
       savingsTotal={data.savingsTotal}
       slices={slices}
       accounts={data.accounts.map((item) => ({ id: item.id, name: item.name, kind: kindLabel(item.kind), balance: item.balance }))}
       movements={movements}
       bands={bands}
       budgets={budgets}
-      goal={firstGoal ? { name: firstGoal.name, balance: firstGoal.balance, target: firstGoal.target } : null}
+      goals={data.goals.map((item) => ({ id: item.id, name: item.name, balance: item.balance, target: item.target }))}
       partnerName={data.partnerName}
       showReminder={data.showReminder}
       query={query}
+      initialGoalId={params.goal ?? null}
+      createNotice={createNotice}
+      addNotice={addNotice}
     />
   );
 }

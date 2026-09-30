@@ -14,7 +14,9 @@ import {
   spaceMembers,
   spaces,
 } from "@/lib/db/schema";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import type { Db } from "@/lib/db/client";
+import { inPeriod, parsePeriod, periodInstants } from "@/lib/period";
+import { and, count, desc, eq, gte, isNull, lt } from "drizzle-orm";
 
 export type AccountRow = {
   id: string;
@@ -50,10 +52,6 @@ function minor(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function monthOf(date: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit" }).format(date);
-}
-
 function dayOf(date: Date, timeZone: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
@@ -62,17 +60,39 @@ function hourOf(date: Date, timeZone: string) {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(date));
 }
 
-export async function loadFinance(userId: string, timeZone: string) {
+const pageSizes = [5, 10, 25] as const;
+export type PageSize = (typeof pageSizes)[number];
+
+export function parsePageSize(value: string | undefined): PageSize {
+  const parsed = Number(value);
+  return parsed === 5 || parsed === 10 || parsed === 25 ? parsed : 10;
+}
+
+async function categoriesFor(db: Db, userId: string) {
+  const everyCategory = await db.select().from(categories);
+  const picks = await db.select().from(userCategoryPicks).where(eq(userCategoryPicks.userId, userId));
+  const pickedIds = new Set(picks.map((item) => item.categoryId));
+  const categoryList = pickedIds.size > 0
+    ? everyCategory.filter((item) => pickedIds.has(item.id) || item.ownerUserId === userId)
+    : everyCategory;
+  const categoryViews: CategoryRow[] = categoryList
+    .filter((item) => item.ownerUserId === null || item.ownerUserId === userId)
+    .map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      key: item.key,
+      name: item.nameCiphertext ? decryptString(asBuffer(item.nameCiphertext)) : null,
+      requiresSpecificConcept: item.requiresSpecificConcept,
+    }));
+  return { categoryList, categoryViews };
+}
+
+export async function loadFinance(userId: string, timeZone: string, period = parsePeriod(undefined, undefined, timeZone)) {
   return withDatabase(async (db, client) => {
     await assumeUser(client, userId);
     const accountList = await db.select().from(accounts).where(and(eq(accounts.ownerUserId, userId), isNull(accounts.archivedAt)));
     const movementList = await db.select().from(movements).where(eq(movements.actorUserId, userId)).orderBy(desc(movements.occurredAt));
-    const everyCategory = await db.select().from(categories);
-    const picks = await db.select().from(userCategoryPicks).where(eq(userCategoryPicks.userId, userId));
-    const pickedIds = new Set(picks.map((item) => item.categoryId));
-    const categoryList = pickedIds.size > 0
-      ? everyCategory.filter((item) => pickedIds.has(item.id) || item.ownerUserId === userId)
-      : everyCategory;
+    const { categoryList, categoryViews } = await categoriesFor(db, userId);
     const shareList = await db.select().from(accountShares).where(and(eq(accountShares.sharedBy, userId), isNull(accountShares.revokedAt)));
     const sharedIds = new Set(shareList.map((item) => item.accountId));
     const names = new Map(accountList.map((item) => [item.id, decryptString(asBuffer(item.nameCiphertext))]));
@@ -90,7 +110,7 @@ export async function loadFinance(userId: string, timeZone: string) {
       shared: sharedIds.has(item.id),
     }));
     const categoryById = new Map(categoryList.map((item) => [item.id, item]));
-    const movementViews: MovementRow[] = movementList.slice(0, 40).map((item) => {
+    const movementViews: MovementRow[] = movementList.filter((item) => inPeriod(item.occurredAt, period, timeZone)).slice(0, 40).map((item) => {
       const category = item.categoryId ? categoryById.get(item.categoryId) : undefined;
       return {
         id: item.id,
@@ -105,14 +125,14 @@ export async function loadFinance(userId: string, timeZone: string) {
         categoryName: category?.nameCiphertext ? decryptString(asBuffer(category.nameCiphertext)) : null,
       };
     });
-    const currentMonth = monthOf(new Date(), timeZone);
+    const currentMonth = period.from.slice(0, 7);
     const byCategory = new Map<string, number>();
     const spentByCategory = new Map<string, number>();
     const byHour = Array.from({ length: 24 }, () => 0);
     let monthIncome = 0;
     let monthExpense = 0;
     for (const item of movementList) {
-      if (monthOf(item.occurredAt, timeZone) !== currentMonth) continue;
+      if (!inPeriod(item.occurredAt, period, timeZone)) continue;
       const amount = minor(item.amountCiphertext);
       if (item.kind === "income" && item.direction === "in") monthIncome += amount;
       if (item.kind !== "expense" || item.direction !== "out") continue;
@@ -124,15 +144,6 @@ export async function loadFinance(userId: string, timeZone: string) {
       const hour = hourOf(item.occurredAt, timeZone);
       if (hour >= 0 && hour <= 23) byHour[hour] += amount;
     }
-    const categoryViews: CategoryRow[] = categoryList
-      .filter((item) => item.ownerUserId === null || item.ownerUserId === userId)
-      .map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        key: item.key,
-        name: item.nameCiphertext ? decryptString(asBuffer(item.nameCiphertext)) : null,
-        requiresSpecificConcept: item.requiresSpecificConcept,
-      }));
     const budgetList = await db.select().from(budgets).where(eq(budgets.userId, userId));
     const [yearText, monthText] = currentMonth.split("-");
     const year = Number(yearText);
@@ -143,14 +154,14 @@ export async function loadFinance(userId: string, timeZone: string) {
         categoryId: item.categoryId,
         limit: minor(item.amountCiphertext),
       }));
-    const goalList = await db.select().from(savingsGoals).where(and(eq(savingsGoals.userId, userId), isNull(savingsGoals.archivedAt)));
+    const goalList = await db.select().from(savingsGoals).where(and(eq(savingsGoals.userId, userId), isNull(savingsGoals.archivedAt))).orderBy(desc(savingsGoals.createdAt));
     const goalViews = goalList.map((item) => ({
       id: item.id,
       accountId: item.accountId,
       name: decryptString(asBuffer(item.nameCiphertext)),
       target: minor(item.targetCiphertext),
       targetDate: item.targetDate,
-      balance: balances.get(item.accountId) ?? 0,
+      balance: item.savedCiphertext ? minor(item.savedCiphertext) : 0,
     }));
     const membership = await db
       .select({ spaceId: spaceMembers.spaceId, status: spaces.status })
@@ -201,6 +212,98 @@ export async function loadFinance(userId: string, timeZone: string) {
       monthIncome,
       monthExpense,
       savingsTotal: accountViews.filter((item) => item.kind === "savings").reduce((sum, item) => sum + item.balance, 0),
+    };
+  });
+}
+
+// El encabezado muestra la suma de cuentas y efectivo. El importe va cifrado, así que se suma aquí.
+export async function loadHoldings(userId: string) {
+  return withDatabase(async (db, client) => {
+    await assumeUser(client, userId);
+    const accountList = await db.select({ id: accounts.id, nameCiphertext: accounts.nameCiphertext }).from(accounts).where(and(eq(accounts.ownerUserId, userId), isNull(accounts.archivedAt)));
+    const balances = new Map(accountList.map((item) => [item.id, 0]));
+    const amounts = await db.select({
+      accountId: movements.accountId,
+      direction: movements.direction,
+      amountCiphertext: movements.amountCiphertext,
+    }).from(movements).where(eq(movements.actorUserId, userId));
+    for (const item of amounts) {
+      if (!balances.has(item.accountId)) continue;
+      const amount = minor(item.amountCiphertext);
+      const signed = item.direction === "in" ? amount : -amount;
+      balances.set(item.accountId, (balances.get(item.accountId) ?? 0) + signed);
+    }
+    const rows = accountList.map((item) => ({
+      id: item.id,
+      name: decryptString(asBuffer(item.nameCiphertext)),
+      balance: balances.get(item.id) ?? 0,
+    }));
+    return { total: rows.reduce((sum, item) => sum + item.balance, 0), accounts: rows };
+  });
+}
+
+// La tabla solo trae una página. El saldo sigue leyendo cada importe porque va cifrado y SQL no puede sumarlo.
+export async function loadLedger(userId: string, page: number, pageSize: PageSize, period = parsePeriod(undefined, undefined, "UTC"), timeZone = "UTC") {
+  return withDatabase(async (db, client) => {
+    await assumeUser(client, userId);
+    const bounds = periodInstants(period, timeZone);
+    const where = bounds
+      ? and(eq(movements.actorUserId, userId), gte(movements.occurredAt, bounds.start), lt(movements.occurredAt, bounds.end))
+      : eq(movements.actorUserId, userId);
+    const whereAll = eq(movements.actorUserId, userId);
+    const [counted] = await db.select({ total: count() }).from(movements).where(where);
+    const total = Number(counted?.total ?? 0);
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(Math.max(1, page), pages);
+    const accountList = await db.select().from(accounts).where(and(eq(accounts.ownerUserId, userId), isNull(accounts.archivedAt)));
+    const { categoryList, categoryViews } = await categoriesFor(db, userId);
+    const shareList = await db.select().from(accountShares).where(and(eq(accountShares.sharedBy, userId), isNull(accountShares.revokedAt)));
+    const sharedIds = new Set(shareList.map((item) => item.accountId));
+    const names = new Map(accountList.map((item) => [item.id, decryptString(asBuffer(item.nameCiphertext))]));
+    const amounts = await db.select({
+      accountId: movements.accountId,
+      direction: movements.direction,
+      amountCiphertext: movements.amountCiphertext,
+    }).from(movements).where(whereAll);
+    const balances = new Map<string, number>();
+    for (const item of amounts) {
+      const amount = minor(item.amountCiphertext);
+      const current = balances.get(item.accountId) ?? 0;
+      balances.set(item.accountId, current + (item.direction === "in" ? amount : -amount));
+    }
+    const accountViews: AccountRow[] = accountList.map((item) => ({
+      id: item.id,
+      name: names.get(item.id) ?? "",
+      kind: item.kind,
+      balance: balances.get(item.id) ?? 0,
+      shared: sharedIds.has(item.id),
+    }));
+    const pageRows = total === 0
+      ? []
+      : await db.select().from(movements).where(where).orderBy(desc(movements.occurredAt)).limit(pageSize).offset((safePage - 1) * pageSize);
+    const categoryById = new Map(categoryList.map((item) => [item.id, item]));
+    const movementViews: MovementRow[] = pageRows.map((item) => {
+      const category = item.categoryId ? categoryById.get(item.categoryId) : undefined;
+      return {
+        id: item.id,
+        accountId: item.accountId,
+        accountName: names.get(item.accountId) ?? "",
+        kind: item.kind,
+        concept: decryptString(asBuffer(item.conceptCiphertext)),
+        amount: minor(item.amountCiphertext),
+        direction: item.direction,
+        occurredAt: item.occurredAt,
+        categoryKey: category?.key ?? null,
+        categoryName: category?.nameCiphertext ? decryptString(asBuffer(category.nameCiphertext)) : null,
+      };
+    });
+    return {
+      accounts: accountViews,
+      categories: categoryViews,
+      movements: movementViews,
+      total,
+      page: safePage,
+      pageSize,
     };
   });
 }

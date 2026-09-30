@@ -1,3 +1,4 @@
+import { GoalPanel, type GoalItem } from "@/components/goal-panel";
 import type { Copy } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money";
 import { Leaf, PiggyBank, ShoppingBag, Users, Wallet, ArrowDownLeft, Info } from "lucide-react";
@@ -11,7 +12,6 @@ type Band = { label: string; value: number };
 type BudgetRow = { name: string; spent: number; limit: number };
 type AccountCard = { id: string; name: string; kind: string; balance: number };
 type MoveCard = { id: string; concept: string; accountName: string; amount: number; direction: "in" | "out"; kind: string; when: string };
-type GoalCard = { name: string; balance: number; target: number } | null;
 
 const chartColors = ["rgb(var(--expense))", "rgb(var(--primary))", "rgb(var(--accent))", "rgb(var(--savings))"];
 
@@ -80,25 +80,6 @@ function Donut({ slices, center, caption }: { slices: Slice[]; center: string; c
   );
 }
 
-function GoalStamps({ filled }: { filled: number }) {
-  const total = 25;
-  return (
-    <div className="grid grid-cols-5 justify-items-center gap-2">
-      {Array.from({ length: total }, (_, index) => {
-        const on = index < filled;
-        return (
-          <span
-            key={index}
-            className={`flex h-9 w-9 items-center justify-center rounded-lg ${on ? "bg-mist text-pine" : "bg-white text-ink/30 ring-1 ring-ink/10"}`}
-          >
-            <PiggyBank className="h-4 w-4" aria-hidden />
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 export function HomeDashboard({
   text,
   locale,
@@ -109,15 +90,20 @@ export function HomeDashboard({
   total,
   monthIncome,
   monthExpense,
+  incomeLabel,
+  expenseLabel,
   savingsTotal,
   slices,
   accounts,
   movements,
   bands,
   budgets,
-  goal,
+  goals,
   partnerName,
   showReminder,
+  initialGoalId,
+  createNotice,
+  addNotice,
 }: {
   text: Copy;
   locale: string;
@@ -128,16 +114,21 @@ export function HomeDashboard({
   total: number;
   monthIncome: number;
   monthExpense: number;
+  incomeLabel: string;
+  expenseLabel: string;
   savingsTotal: number;
   slices: Slice[];
   accounts: AccountCard[];
   movements: MoveCard[];
   bands: Band[];
   budgets: BudgetRow[];
-  goal: GoalCard;
+  goals: GoalItem[];
   partnerName: string | null;
   showReminder: boolean;
   query: string;
+  initialGoalId: string | null;
+  createNotice: string | null;
+  addNotice: string | null;
 }) {
   const money = (value: number) => formatMoney(value, locale, currency);
   const kept = Math.max(0, monthIncome - monthExpense);
@@ -149,9 +140,6 @@ export function HomeDashboard({
   const peak = bands.reduce((best, item) => (item.value > best.value ? item : best), bands[0]);
   const incomes = movements.filter((item) => item.kind === "income").slice(0, 3);
   const recent = movements.slice(0, 4);
-  const goalRatio = goal && goal.target > 0 ? Math.min(100, (goal.balance / goal.target) * 100) : 0;
-  const stamps = goal && goal.target > 0 ? Math.round((goal.balance / goal.target) * 25) : 0;
-  const stampsLeft = Math.max(0, 25 - Math.min(25, stamps));
   const card = "rounded-2xl bg-white p-4 shadow-sm ring-1 ring-ink/10 sm:p-5";
 
   return (
@@ -196,7 +184,7 @@ export function HomeDashboard({
         <article className={card}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[0.7rem] uppercase tracking-wide text-ink/60">{text.incomeMonth}</p>
+              <p className="text-[0.7rem] uppercase tracking-wide text-ink/60">{incomeLabel}</p>
               <p className={`${display.className} mt-1 text-[clamp(1.6rem,4vw,2rem)] text-pine`}>{monthIncome > 0 ? "+" : ""}{money(monthIncome)}</p>
             </div>
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-mist text-pine"><ArrowDownLeft className="h-4 w-4" aria-hidden /></span>
@@ -206,7 +194,7 @@ export function HomeDashboard({
         <article className={card}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[0.7rem] uppercase tracking-wide text-ink/60">{text.expenseMonth}</p>
+              <p className="text-[0.7rem] uppercase tracking-wide text-ink/60">{expenseLabel}</p>
               <p className={`${display.className} mt-1 text-[clamp(1.6rem,4vw,2rem)] text-expense`}>{money(monthExpense)}</p>
             </div>
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-mist text-expense"><ShoppingBag className="h-4 w-4" aria-hidden /></span>
@@ -327,32 +315,20 @@ export function HomeDashboard({
         </div>
 
         <div className="grid content-start gap-4 lg:col-span-4">
-          <article className={card}>
-            <h2 className={`${display.className} text-xl text-pine`}>{goal ? goal.name : text.goalCard}</h2>
-            {goal ? (
-              <div className="mt-4 grid gap-3">
-                <p className="text-sm text-ink/70">{money(goal.balance)} / {money(goal.target)}</p>
-                <div className="rounded-2xl bg-paper p-3">
-                  <GoalStamps filled={Math.max(0, Math.min(25, stamps))} />
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink/60">
-                  <span>{stampsLeft} {text.stampsLeft}</span>
-                  <span>{Math.round(goalRatio)}%</span>
-                </div>
-                <Link href="/goals" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-mist px-4 text-sm text-pine">{text.newGoal}</Link>
-              </div>
-            ) : (
-              <div className="mt-4 grid gap-3">
-                <p className="text-sm text-ink/70">{text.goalEmpty}</p>
-                <Link href="/goals" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-mist px-4 text-sm">{text.newGoal}</Link>
-              </div>
-            )}
-          </article>
+          <GoalPanel
+            goals={goals}
+            text={text}
+            locale={locale}
+            currency={currency}
+            initialId={initialGoalId}
+            createNotice={createNotice}
+            addNotice={addNotice}
+          />
 
           <article className={card}>
             <div className="flex items-center justify-between gap-3">
               <h2 className={`${display.className} text-xl text-pine`}>{text.recentTitle}</h2>
-              <Link href="/movements" className="inline-flex min-h-11 items-center text-sm text-ink/60">{text.seeAll}</Link>
+              <Link href="/accounts" className="inline-flex min-h-11 items-center text-sm text-ink/60">{text.seeAll}</Link>
             </div>
             {recent.length === 0 ? <p className="mt-4 text-sm text-ink/70">{text.noMoves}</p> : (
               <ul className="mt-4 grid gap-3">

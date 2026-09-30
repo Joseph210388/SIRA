@@ -1,6 +1,8 @@
+import { loadOwnProfile } from "@/lib/auth/profile";
 import { getSession } from "@/lib/auth/session";
 import { AppShell } from "@/components/app-shell";
 import { SetupDialog } from "@/components/setup-dialog";
+import { loadHoldings } from "@/lib/finance/load";
 import { appCopy } from "@/lib/i18n-db";
 import { pendingSetup } from "@/lib/setup";
 import { headers } from "next/headers";
@@ -21,9 +23,12 @@ export default async function PrivateLayout({ children }: { children: ReactNode 
   }
   const text = await appCopy(session.locale);
   const step = await pendingSetup(session.userId);
-  const error = new URLSearchParams((await headers()).get("x-sira-search") ?? "").get("error");
+  const search = new URLSearchParams((await headers()).get("x-sira-search") ?? "");
+  const error = search.get("error");
+  const profile = await loadOwnProfile(session.userId);
+  const holdings = await loadHoldings(session.userId);
   return (
-    <AppShell text={text} name={session.displayName} locale={session.locale} timeZone={session.timezone} theme={session.theme} currency={session.currency} setupOpen={Boolean(step)}>
+    <AppShell text={text} name={session.displayName} locale={session.locale} timeZone={session.timezone} theme={session.theme} currency={session.currency} holdings={holdings} setupOpen={Boolean(step)} profile={profile} profileError={search.get("form") === "profile" ? error : null}>
       {children}
       {step ? <SetupDialog step={step} text={text} userId={session.userId} timeZone={session.timezone} error={error} /> : null}
     </AppShell>

@@ -25,6 +25,8 @@ export function HeaderSearch({ placeholder, locked }: { placeholder: string; loc
       onSubmit={locked ? (event) => event.preventDefault() : undefined}
       className="relative min-w-0 w-full sm:w-auto sm:min-w-[12rem] sm:max-w-xl sm:flex-1"
     >
+      {params.get("from") ? <input type="hidden" name="from" value={params.get("from") ?? ""} /> : null}
+      {params.get("to") ? <input type="hidden" name="to" value={params.get("to") ?? ""} /> : null}
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/40" aria-hidden />
       <input
         ref={field}
